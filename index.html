@@ -101,6 +101,9 @@
                     <span id="streak-value"></span>-Tage-Streak!
                 </div>
             </div>
+            
+            <!-- API Error Message -->
+            <div id="api-error-message" class="hidden text-center text-red-500 text-xs mb-4 p-2 bg-red-100 dark:bg-red-900/50 rounded-lg"></div>
 
             <!-- Month Switcher -->
             <div class="flex justify-between items-center my-4">
@@ -209,6 +212,7 @@
             pricesList: document.getElementById('prices-list'),
             saveSettingsBtn: document.getElementById('save-settings-btn'),
             chartCanvas: document.getElementById('savingsChart'),
+            apiErrorDisplay: document.getElementById('api-error-message'),
         };
 
         // --- STATE & CHART INSTANCE ---
@@ -405,10 +409,12 @@
         // --- API & EVENT HANDLERS ---
         async function fetchTodaysPrice() {
             // ▼▼▼ HIER DEINEN API-SCHLÜSSEL EINTRAGEN ▼▼▼
-            const tankerkoenigAPIKey = ""; // z.B. "dein-geheimer-schlüssel-12345"
+            const tankerkoenigAPIKey = "392f291e-92d6-60b3-d112-2ad28198f39c"; // z.B. "dein-geheimer-schlüssel-12345"
             // ▲▲▲ HIER DEINEN API-SCHLÜSSEL EINTRAGEN ▲▲▲
 
             const todayISO = getISODate(new Date());
+            app.apiErrorDisplay.classList.add('hidden'); // Reset error message
+
             if (prices[todayISO]) {
                 console.log("Preis für heute ist bereits vorhanden.");
                 return;
@@ -423,7 +429,10 @@
             const lat = 53.136;
             const lng = 7.982;
             const radius = 5; // 5 km Radius
-            const url = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${lat}&lng=${lng}&rad=${radius}&type=diesel&sort=dist&apikey=${tankerkoenigAPIKey}`;
+            
+            const apiUrl = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${lat}&lng=${lng}&rad=${radius}&type=diesel&sort=dist&apikey=${tankerkoenigAPIKey}`;
+            const proxyUrl = 'https://corsproxy.io/?'; // RELIABLE PROXY
+            const url = proxyUrl + encodeURIComponent(apiUrl);
             
             try {
                 const response = await fetch(url);
@@ -433,7 +442,7 @@
                 const data = await response.json();
 
                 if (!data.ok || data.stations.length === 0) {
-                    throw new Error("Keine Tankstellen gefunden oder API-Antwort nicht ok.");
+                    throw new Error("Keine Tankstellen gefunden oder API-Antwort nicht ok. (Prüfe den API-Schlüssel)");
                 }
 
                 const validPrices = data.stations.map(s => s.price).filter(p => p > 0);
@@ -450,6 +459,8 @@
                 render();
             } catch (error) {
                 console.error("Fehler beim Abrufen des heutigen Preises:", error);
+                app.apiErrorDisplay.textContent = 'Fehler: Konnte den Spritpreis nicht laden. Prüfe den API-Schlüssel.';
+                app.apiErrorDisplay.classList.remove('hidden');
             }
         }
 

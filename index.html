@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Bike vs. Auto: Spar-Tracker</title>
+    <title>Jules Spar-Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
 
     <div id="app-container" class="max-w-md mx-auto bg-transparent">
         <header class="p-4 pt-6 flex justify-between items-center">
-            <h1 class="text-3xl font-bold">Bike vs. Auto</h1>
+            <h1 class="text-3xl font-bold">Jules Spar-Tracker</h1>
             <div>
                 <button id="prices-btn" class="text-gray-500 dark:text-gray-400 w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700"><i class="fas fa-euro-sign"></i></button>
                 <button id="settings-btn" class="text-gray-500 dark:text-gray-400 w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 ml-2"><i class="fas fa-gear"></i></button>
@@ -402,7 +402,57 @@
             }
         }
 
-        // --- EVENT HANDLERS & LOGIC ---
+        // --- API & EVENT HANDLERS ---
+        async function fetchTodaysPrice() {
+            // ▼▼▼ HIER DEINEN API-SCHLÜSSEL EINTRAGEN ▼▼▼
+            const tankerkoenigAPIKey = "392f291e-92d6-60b3-d112-2ad28198f39c"; // z.B. "dein-geheimer-schlüssel-12345"
+            // ▲▲▲ HIER DEINEN API-SCHLÜSSEL EINTRAGEN ▲▲▲
+
+            const todayISO = getISODate(new Date());
+            if (prices[todayISO]) {
+                console.log("Preis für heute ist bereits vorhanden.");
+                return;
+            }
+            
+            if (!tankerkoenigAPIKey) {
+                console.warn("Kein Tankerkoenig API-Schlüssel gefunden. Preisabruf wird übersprungen.");
+                return;
+            }
+
+            // Koordinaten für Edewecht (kannst du anpassen)
+            const lat = 53.136;
+            const lng = 7.982;
+            const radius = 5; // 5 km Radius
+            const url = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${lat}&lng=${lng}&rad=${radius}&type=diesel&sort=dist&apikey=${tankerkoenigAPIKey}`;
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`API-Fehler: ${response.statusText}`);
+                }
+                const data = await response.json();
+
+                if (!data.ok || data.stations.length === 0) {
+                    throw new Error("Keine Tankstellen gefunden oder API-Antwort nicht ok.");
+                }
+
+                const validPrices = data.stations.map(s => s.price).filter(p => p > 0);
+                if (validPrices.length === 0) {
+                    throw new Error("Keine gültigen Preise in der Antwort gefunden.");
+                }
+
+                const avgPrice = validPrices.slice(0, 5).reduce((sum, p) => sum + p, 0) / Math.min(5, validPrices.length);
+                
+                prices[todayISO] = { price: avgPrice, source: 'Tankerkoenig' };
+                console.log(`Automatischer Preis für heute: ${avgPrice.toFixed(3)}€`);
+                
+                saveState();
+                render();
+            } catch (error) {
+                console.error("Fehler beim Abrufen des heutigen Preises:", error);
+            }
+        }
+
         function toggleBiked(isoDate) {
             days[isoDate] = { biked: !(days[isoDate]?.biked) };
             if (days[isoDate].biked && !prices[isoDate]) {
@@ -480,8 +530,9 @@
         }
 
         // --- INITIALIZATION ---
-        function init() {
+        async function init() {
             loadState();
+            await fetchTodaysPrice(); // Ruft den Preis beim Start ab
             app.priceDatePicker.value = getISODate(new Date());
             setupEventListeners();
             render();
@@ -491,3 +542,4 @@
     </script>
 </body>
 </html>
+
